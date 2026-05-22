@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArcElement,
   BarElement,
@@ -52,10 +52,15 @@ const formatBucketLabel = (value) => {
 }
 
 function App() {
+  const [theme, setTheme] = useState('dark')
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [report, setReport] = useState(null)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -159,7 +164,19 @@ function App() {
       <header className="hero">
         <div className="hero-text">
           <p className="eyebrow">Local analytics workspace</p>
-          <h1>Web log intelligence in minutes.</h1>
+          <div className="hero-heading">
+            <h1>Web log intelligence in minutes.</h1>
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() =>
+                setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+              }
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            </button>
+          </div>
           <p className="subtitle">
             Upload a mixed-format log file and get a full breakdown of status
             distribution, latency percentiles, error bursts, and anomalies.
@@ -240,29 +257,33 @@ function App() {
                 <h2>Status distribution</h2>
                 <p>Total {formatNumber(report.status.total)}</p>
               </div>
-              {statusChart && <Doughnut data={statusChart} />}
+              <div className="chart-wrap">
+                {statusChart && <Doughnut data={statusChart} />}
+              </div>
             </div>
             <div className="panel">
               <div className="panel-header">
                 <h2>Error rate over time</h2>
                 <p>Bucketed breakdown</p>
               </div>
-              {errorTrendChart && (
-                <Line
-                  data={errorTrendChart}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                      y: {
-                        ticks: {
-                          callback: (value) => `${value}%`,
+              <div className="chart-wrap">
+                {errorTrendChart && (
+                  <Line
+                    data={errorTrendChart}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      scales: {
+                        y: {
+                          ticks: {
+                            callback: (value) => `${value}%`,
+                          },
                         },
                       },
-                    },
-                  }}
-                />
-              )}
+                    }}
+                  />
+                )}
+              </div>
             </div>
           </section>
 
@@ -272,16 +293,18 @@ function App() {
                 <h2>Slow endpoints</h2>
                 <p>p95 latency highlights</p>
               </div>
-              {latencyChart && (
-                <Bar
-                  data={latencyChart}
-                  options={{
-                    indexAxis: 'y',
-                    responsive: true,
-                    maintainAspectRatio: false,
-                  }}
-                />
-              )}
+              <div className="chart-wrap">
+                {latencyChart && (
+                  <Bar
+                    data={latencyChart}
+                    options={{
+                      indexAxis: 'y',
+                      responsive: true,
+                      maintainAspectRatio: false,
+                    }}
+                  />
+                )}
+              </div>
             </div>
             <div className="panel">
               <div className="panel-header">
