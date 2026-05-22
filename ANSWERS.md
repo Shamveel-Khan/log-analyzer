@@ -2,35 +2,54 @@
 
 ## How to run
 
-1. Install Python 3.10+.
-2. (Optional) Generate a sample log:
+1. Install Python 3.10+ and Node.js 18+.
+2. Install backend dependencies:
+
+```bash
+pip install fastapi uvicorn python-multipart
+```
+
+3. Install frontend dependencies:
+
+```bash
+cd web
+npm install
+```
+
+4. (Optional) Generate a sample log:
 
 ```bash
 python scripts/generate_log.py --lines 2000 --output sample.log
 ```
 
-3. Run the analyzer:
+5. Start the API server:
 
 ```bash
-python src/cli.py sample.log --format both
+python src/api.py
 ```
 
-No third-party packages are required.
+6. Start the frontend:
+
+```bash
+cd web
+npm run dev
+```
+
+Open the Vite URL (default http://localhost:5173) and upload a log file.
 
 ## Stack choice
 
-I chose Python for fast iteration on text parsing, excellent standard library support (datetime, json, shlex), and portability across machines. A worse choice here would be a heavy web framework stack (e.g., a full React/Node app) because it adds setup and complexity without improving robustness for plain-text log parsing.
+I chose Python + FastAPI for the backend because it keeps log parsing close to the analyzer, runs locally with minimal ceremony, and is easy to extend with streaming uploads. React + Vite was selected for a fast, clean UI with charting. A worse choice would be a heavier backend framework or a full database-backed stack, which would slow iteration and add complexity for a single-file upload workflow.
 
 ## One real edge case
 
-When `--since` is provided and a line has no timestamp, the analyzer increments `since_missing_timestamp` and skips that line instead of crashing or mis-filtering. See [src/analyze.py](src/analyze.py#L332-L335). Without this handling, comparing `None` to a datetime would raise a `TypeError`, aborting the run and losing all results.
+When `--since` is provided and a line has no timestamp, the analyzer increments `since_missing_timestamp` and skips that line. See [src/analyze.py](src/analyze.py#L384-L389). Without this handling, the comparison against a missing timestamp would raise a `TypeError`, aborting the run and losing results.
 
 ## AI usage
 
+- GitHub Copilot: asked it to draft parts of the FastAPI upload endpoint and JSON response wiring. I changed the output by adding the shared `build_json_report` schema and API response structure, and refined the endpoint behavior to match the analyzer output and UI needs.
+- GitHub Copilot: used for some UI scaffolding, then I adjusted styles, added the dark/light toggle, and tuned the layout for the analytics panels.
+
 ## Honest gap
 
-Percentiles are computed in-memory using full duration lists, which can be heavy for very large logs. With more time, I would switch to streaming quantile sketches (t-digest or reservoir sampling) to keep memory bounded while preserving accurate p50/p95/p99 estimates.
-
-## Update
-
-The analyzer now emits per-endpoint latency percentiles (p50/p95/p99), time-bucketed error rates, and endpoint summaries that feed a local FastAPI server. The Vite + React frontend uploads a log file and renders status distribution, error rate over time, top IPs, slow endpoints, and anomaly counts based on the JSON schema returned by `POST /analyze`.
+Percentiles are computed in-memory using full duration lists, which can be heavy for very large logs. With another day, I would switch to streaming quantile sketches (t-digest or reservoir sampling) to keep memory bounded while preserving accurate p50/p95/p99 estimates.
