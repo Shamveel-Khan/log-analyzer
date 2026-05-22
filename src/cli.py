@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
-from analyze import analyze_log, parse_timestamp
+from analyze import analyze_log, build_json_report, parse_timestamp, summarize_status
 
 
 def format_count_pct(count: int, total: int) -> str:
@@ -13,15 +13,6 @@ def format_count_pct(count: int, total: int) -> str:
         return f"{count} (n/a)"
     pct = (count / total) * 100.0
     return f"{count} ({pct:.1f}%)"
-
-
-def summarize_status(status_counts: Dict[int, int]) -> Tuple[int, int, int]:
-    total = sum(status_counts.values())
-    error_count = 0
-    for code, count in status_counts.items():
-        if 400 <= int(code) <= 599:
-            error_count += count
-    return total, error_count, total - error_count
 
 
 def render_human_report(stats: Dict[str, Any], top_n: int) -> str:
@@ -112,82 +103,6 @@ def render_human_report(stats: Dict[str, Any], top_n: int) -> str:
             )
 
     return "\n".join(lines)
-
-
-def build_json_report(stats: Dict[str, Any], top_n: int) -> Dict[str, Any]:
-    status_counts = stats["status_counts"]
-    status_total, error_count, ok_count = summarize_status(status_counts)
-
-    ip_counts = stats["ip_counts"]
-    top_ips = [
-        {"ip": ip, "count": count}
-        for ip, count in sorted(
-            ip_counts.items(), key=lambda item: (-item[1], item[0])
-        )[:top_n]
-    ]
-
-    ts_min = stats.get("timestamp_min")
-    ts_max = stats.get("timestamp_max")
-
-    time_buckets = []
-    for bucket, bucket_stats in stats.get("time_buckets", {}).items():
-        total = bucket_stats.get("total", 0)
-        errors = bucket_stats.get("errors", 0)
-        time_buckets.append(
-            {
-                "bucket": bucket.isoformat(),
-                "total": total,
-                "errors": errors,
-                "error_rate": (errors / total) if total else None,
-            }
-        )
-
-    endpoint_summaries = stats.get("endpoint_summaries", [])
-    top_endpoints = sorted(
-        endpoint_summaries,
-        key=lambda item: (
-            -(item.get("p95_ms") or 0.0),
-            -(item.get("avg_ms") or 0.0),
-            item["endpoint"],
-        ),
-    )[:top_n]
-
-    return {
-        "summary": {
-            "total_lines": stats["total_lines"],
-            "parsed_lines": stats["parsed_lines"],
-            "malformed_lines": stats["malformed_lines"],
-            "blank_lines": stats["blank_lines"],
-            "json_lines": stats["json_lines"],
-            "filtered_lines": stats["filtered_lines"],
-            "since_missing_timestamp": stats["since_missing_timestamp"],
-            "time_range": {
-                "start": ts_min.isoformat() if ts_min else None,
-                "end": ts_max.isoformat() if ts_max else None,
-            },
-        },
-        "status": {
-            "total": status_total,
-            "ok": ok_count,
-            "error": error_count,
-            "counts": {str(k): v for k, v in sorted(status_counts.items())},
-        },
-        "duration": {
-            "count": stats["duration_count"],
-            "avg_ms": (
-                (stats["duration_total_ms"] / stats["duration_count"])
-                if stats["duration_count"]
-                else None
-            ),
-            "min_ms": stats["duration_min_ms"],
-            "max_ms": stats["duration_max_ms"],
-            "percentiles_ms": stats.get("duration_percentiles", {}),
-        },
-        "top_ips": top_ips,
-        "anomalies": dict(sorted(stats["anomaly_counts"].items())),
-        "time_buckets": time_buckets,
-        "endpoints": top_endpoints,
-    }
 
 
 def parse_args() -> argparse.Namespace:

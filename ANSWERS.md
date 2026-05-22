@@ -29,4 +29,8 @@ When `--since` is provided and a line has no timestamp, the analyzer increments 
 
 ## Honest gap
 
-The analyzer does not compute per-endpoint latency percentiles or “slowest endpoints,” which would be very useful in real on-call triage. With another day, I would add endpoint-level aggregation and streaming percentiles (p50/p95/p99), plus a `--top-endpoints` flag.
+Percentiles are computed in-memory using full duration lists, which can be heavy for very large logs. With more time, I would switch to streaming quantile sketches (t-digest or reservoir sampling) to keep memory bounded while preserving accurate p50/p95/p99 estimates.
+
+## Update
+
+The analyzer now emits per-endpoint latency percentiles (p50/p95/p99), time-bucketed error rates, and endpoint summaries that feed a local FastAPI server. The Vite + React frontend uploads a log file and renders status distribution, error rate over time, top IPs, slow endpoints, and anomaly counts based on the JSON schema returned by `POST /analyze`.

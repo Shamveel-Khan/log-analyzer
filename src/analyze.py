@@ -313,6 +313,15 @@ def compute_percentiles(
     return results
 
 
+def summarize_status(status_counts: Dict[int, int]) -> Tuple[int, int, int]:
+    total = sum(status_counts.values())
+    error_count = 0
+    for code, count in status_counts.items():
+        if 400 <= int(code) <= 599:
+            error_count += count
+    return total, error_count, total - error_count
+
+
 def analyze_log(
     path: str,
     since: Optional[dt.datetime] = None,
@@ -488,3 +497,79 @@ def analyze_log(
     )
 
     return stats
+
+
+def build_json_report(stats: Dict[str, Any], top_n: int = 10) -> Dict[str, Any]:
+    status_counts = stats.get("status_counts", {})
+    status_total, error_count, ok_count = summarize_status(status_counts)
+
+    ip_counts = stats.get("ip_counts", {})
+    top_ips = [
+        {"ip": ip, "count": count}
+        for ip, count in sorted(
+            ip_counts.items(), key=lambda item: (-item[1], item[0])
+        )[:top_n]
+    ]
+
+    ts_min = stats.get("timestamp_min")
+    ts_max = stats.get("timestamp_max")
+
+    time_buckets = []
+    for bucket, bucket_stats in stats.get("time_buckets", {}).items():
+        total = bucket_stats.get("total", 0)
+        errors = bucket_stats.get("errors", 0)
+        time_buckets.append(
+            {
+                "bucket": bucket.isoformat(),
+                "total": total,
+                "errors": errors,
+                "error_rate": (errors / total) if total else None,
+            }
+        )
+
+    endpoint_summaries = stats.get("endpoint_summaries", [])
+    top_endpoints = sorted(
+        endpoint_summaries,
+        key=lambda item: (
+            -(item.get("p95_ms") or 0.0),
+            -(item.get("avg_ms") or 0.0),
+            item["endpoint"],
+        ),
+    )[:top_n]
+
+    return {
+        "summary": {
+            "total_lines": stats.get("total_lines", 0),
+            "parsed_lines": stats.get("parsed_lines", 0),
+            "malformed_lines": stats.get("malformed_lines", 0),
+            "blank_lines": stats.get("blank_lines", 0),
+            "json_lines": stats.get("json_lines", 0),
+            "filtered_lines": stats.get("filtered_lines", 0),
+            "since_missing_timestamp": stats.get("since_missing_timestamp", 0),
+            "time_range": {
+                "start": ts_min.isoformat() if ts_min else None,
+                "end": ts_max.isoformat() if ts_max else None,
+            },
+        },
+        "status": {
+            "total": status_total,
+            "ok": ok_count,
+            "error": error_count,
+            "counts": {str(k): v for k, v in sorted(status_counts.items())},
+        },
+        "duration": {
+            "count": stats.get("duration_count", 0),
+            "avg_ms": (
+                (stats.get("duration_total_ms", 0.0) / stats.get("duration_count", 0))
+                if stats.get("duration_count")
+                else None
+            ),
+            "min_ms": stats.get("duration_min_ms"),
+            "max_ms": stats.get("duration_max_ms"),
+            "percentiles_ms": stats.get("duration_percentiles", {}),
+        },
+        "top_ips": top_ips,
+        "anomalies": dict(sorted(stats.get("anomaly_counts", {}).items())),
+        "time_buckets": time_buckets,
+        "endpoints": top_endpoints,
+    }
