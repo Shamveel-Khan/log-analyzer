@@ -8,6 +8,7 @@ from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from analyze import analyze_log, build_json_report, parse_timestamp
+from cli import render_human_report
 
 app = FastAPI(title="Log Analyzer API", version="1.0.0")
 
@@ -52,6 +53,10 @@ async def analyze_log_file(
                 tmp.write(chunk)
 
         stats = analyze_log(tmp_path, since=since_dt, bucket_seconds=bucket_seconds)
+        # Print the human report to the server's stdout (CLI)
+        print("\n--- Log Analysis (API call) ---")
+        print(render_human_report(stats, top_n))
+        print("--- End of Report ---\n")
         return build_json_report(stats, top_n=top_n)
     finally:
         if tmp_path and os.path.exists(tmp_path):
